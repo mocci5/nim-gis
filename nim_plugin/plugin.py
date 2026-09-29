@@ -3,7 +3,9 @@
 from qgis.core import QgsApplication, QgsProject
 from qgis.PyQt.QtWidgets import QMenu, QMessageBox, QToolButton
 
+from . import projecte
 from .capes_oficials import CATALEG, crea_capa
+from .dialeg_projecte import DialegProjecte
 from .mcp_servidor import PORT, ServidorMCP
 
 try:
@@ -19,7 +21,7 @@ class NimPlugin:
     def __init__(self, iface):
         self.iface = iface
         self.toolbar = None
-        self.menu_capes = None
+        self.menus = []
         self.accio_mcp = None
         self.servidor = ServidorMCP(iface)
         self.actions = []
@@ -27,24 +29,36 @@ class NimPlugin:
     def initGui(self):  # noqa: N802
         self.toolbar = self.iface.addToolBar("NiM-GIS")
         self.toolbar.setObjectName("NiMGISToolbar")
+        self._crea_boto_projecte()
         self._crea_boto_capes()
         self._crea_boto_mcp()
         self._crea_boto_info()
 
+    # --- Botons de la barra ---------------------------------------------
+
+    def _boto_amb_menu(self, menu, icona, text):
+        boto = QToolButton()
+        boto.setIcon(QgsApplication.getThemeIcon(icona))
+        boto.setToolTip(text)
+        boto.setMenu(menu)
+        boto.setPopupMode(INSTANT_POPUP)
+        self.toolbar.addWidget(boto)
+        self.menus.append(menu)
+
+    def _crea_boto_projecte(self):
+        menu = QMenu("Projecte", self.iface.mainWindow())
+        menu.addAction("Nou projecte NiM-GIS…").triggered.connect(self.nou_projecte)
+        menu.addAction("Organitza capes per tipus").triggered.connect(self.organitza_capes)
+        self._boto_amb_menu(menu, "/mActionNewProject.svg", "Projecte")
+
     def _crea_boto_capes(self):
-        self.menu_capes = QMenu("Capes oficials", self.iface.mainWindow())
+        menu = QMenu("Capes oficials", self.iface.mainWindow())
         for categoria, capes in CATALEG.items():
-            submenu = self.menu_capes.addMenu(categoria)
+            submenu = menu.addMenu(categoria)
             for entrada in capes:
                 accio = submenu.addAction(entrada["nom"])
                 accio.triggered.connect(lambda _=False, e=entrada: self.afegeix_capa(e))
-
-        boto = QToolButton()
-        boto.setIcon(QgsApplication.getThemeIcon("/mActionAddWmsLayer.svg"))
-        boto.setToolTip("Capes oficials")
-        boto.setMenu(self.menu_capes)
-        boto.setPopupMode(INSTANT_POPUP)
-        self.toolbar.addWidget(boto)
+        self._boto_amb_menu(menu, "/mActionAddWmsLayer.svg", "Capes oficials")
 
     def _crea_boto_mcp(self):
         self.accio_mcp = QAction(
@@ -57,6 +71,51 @@ class NimPlugin:
         self.toolbar.addAction(self.accio_mcp)
         self.iface.addPluginToMenu(MENU, self.accio_mcp)
         self.actions.append(self.accio_mcp)
+
+    def _crea_boto_info(self):
+        accio_info = QAction(
+            QgsApplication.getThemeIcon("/mActionHelpContents.svg"),
+            "Quant a NiM-GIS",
+            self.iface.mainWindow(),
+        )
+        accio_info.triggered.connect(self.mostra_info)
+        self.toolbar.addAction(accio_info)
+        self.iface.addPluginToMenu(MENU, accio_info)
+        self.actions.append(accio_info)
+
+    # --- Accions ----------------------------------------------------------
+
+    def nou_projecte(self):
+        dialeg = DialegProjecte(self.iface.mainWindow())
+        if not dialeg.exec():
+            return
+        barra = self.iface.messageBar()
+        try:
+            resultat = projecte.crea_projecte(self.iface, **dialeg.valors())
+        except Exception as error:  # noqa: BLE001
+            barra.pushCritical("NiM-GIS", str(error))
+            return
+        barra.pushSuccess("NiM-GIS", f"Projecte creat: {resultat['fitxer']}")
+        if resultat["capes_no_carregades"]:
+            barra.pushWarning(
+                "NiM-GIS",
+                "No s'han pogut carregar: " + ", ".join(resultat["capes_no_carregades"]),
+            )
+
+    def organitza_capes(self):
+        resultat = projecte.organitza_capes()
+        self.iface.messageBar().pushSuccess(
+            "NiM-GIS", f"Capes organitzades: {resultat['organitzades']}"
+        )
+
+    def afegeix_capa(self, entrada):
+        capa = crea_capa(entrada)
+        if capa.isValid():
+            QgsProject.instance().addMapLayer(capa)
+        else:
+            self.iface.messageBar().pushWarning(
+                "NiM-GIS", f"No s'ha pogut carregar la capa: {entrada['nom']}"
+            )
 
     def commuta_mcp(self, activa):
         barra = self.iface.messageBar()
@@ -72,42 +131,22 @@ class NimPlugin:
             self.accio_mcp.setChecked(False)
             self.accio_mcp.blockSignals(False)
 
-    def _crea_boto_info(self):
-        accio_info = QAction(
-            QgsApplication.getThemeIcon("/mActionHelpContents.svg"),
-            "Quant a NiM-GIS",
-            self.iface.mainWindow(),
-        )
-        accio_info.triggered.connect(self.mostra_info)
-        self.toolbar.addAction(accio_info)
-        self.iface.addPluginToMenu(MENU, accio_info)
-        self.actions.append(accio_info)
-
-    def afegeix_capa(self, entrada):
-        capa = crea_capa(entrada)
-        if capa.isValid():
-            QgsProject.instance().addMapLayer(capa)
-        else:
-            self.iface.messageBar().pushWarning(
-                "NiM-GIS", f"No s'ha pogut carregar la capa: {entrada['nom']}"
-            )
-
-    def unload(self):
-        self.servidor.atura()
-        for accio in self.actions:
-            self.iface.removePluginMenu(MENU, accio)
-        self.actions = []
-        if self.menu_capes is not None:
-            self.menu_capes.deleteLater()
-            self.menu_capes = None
-        if self.toolbar is not None:
-            self.iface.mainWindow().removeToolBar(self.toolbar)
-            self.toolbar.deleteLater()
-            self.toolbar = None
-
     def mostra_info(self):
         QMessageBox.information(
             self.iface.mainWindow(),
             "NiM-GIS",
             "NiM-GIS 0.0.1\n\nComplement en desenvolupament.",
         )
+
+    def unload(self):
+        self.servidor.atura()
+        for accio in self.actions:
+            self.iface.removePluginMenu(MENU, accio)
+        self.actions = []
+        for menu in self.menus:
+            menu.deleteLater()
+        self.menus = []
+        if self.toolbar is not None:
+            self.iface.mainWindow().removeToolBar(self.toolbar)
+            self.toolbar.deleteLater()
+            self.toolbar = None
