@@ -5,6 +5,8 @@ Només es poden executar les funcions registrades amb @ordre.
 
 from qgis.core import QgsProject, QgsRasterLayer, QgsVectorLayer, QgsWkbTypes
 
+from . import projecte
+
 from .capes_oficials import CATALEG, crea_capa
 
 VERSIO = "0.0.1"
@@ -67,4 +69,26 @@ def afegeix_capa_oficial(iface, nom):
                     raise ValueError(f"No s'ha pogut carregar la capa: {nom}")
                 QgsProject.instance().addMapLayer(capa)
                 return {"id": capa.id(), "nom": capa.name()}
-    raise ValueError(f"No hi ha cap capa al catàleg amb el nom: {nom}")
+    raise ValueError(f"No hi ha cap capa al catàleg amb el nom: {
+
+@ordre("tipus_projecte")
+def tipus_projecte(iface):
+    return {
+        tipus: {"grups": grups, "capes_per_defecte": projecte.CAPES_PER_DEFECTE[tipus]}
+        for tipus, grups in projecte.TIPUS_PROJECTE.items()
+    }
+
+
+@ordre("crea_projecte")
+def crea_projecte(iface, nom, carpeta, tipus="General", crs="EPSG:25831", capes=None):
+    return projecte.crea_projecte(iface, nom, carpeta, tipus, crs, capes)
+
+
+@ordre("organitza_capes")
+def organitza_capes(iface):
+    return projecte.organitza_capes()
+
+
+@ordre("desa_projecte")
+def desa_projecte(iface):
+    return projecte.desa_projecte()
