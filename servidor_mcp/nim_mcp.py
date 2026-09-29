@@ -19,7 +19,7 @@ mcp = MCPServer("NiM-GIS")
 def envia(ordre, **params):
     missatge = json.dumps({"ordre": ordre, "params": params}) + "\n"
     try:
-        with socket.create_connection((HOST, PORT), timeout=60) as connexio:
+        with socket.create_connection((HOST, PORT), timeout=300) as connexio:
             connexio.sendall(missatge.encode("utf-8"))
             dades = b""
             while not dades.endswith(b"\n"):
@@ -69,6 +69,44 @@ def afegeix_capa_oficial(nom: str) -> dict:
     Feu servir el nom exacte que retorna cataleg_capes.
     """
     return envia("afegeix_capa_oficial", nom=nom)
+
+
+@mcp.tool()
+def tipus_projecte() -> dict:
+    """Tipus de projecte NiM-GIS disponibles, amb els grups de capes i les capes
+    oficials que es carreguen per defecte en cadascun."""
+    return envia("tipus_projecte")
+
+
+@mcp.tool()
+def crea_projecte(
+    nom: str,
+    carpeta: str,
+    tipus: str = "General",
+    crs: str = "EPSG:25831",
+    capes: list[str] | None = None,
+) -> dict:
+    """Crea un projecte NiM-GIS nou i el desa.
+
+    Crea l'estructura de carpetes (00_Projecte, 01_Dades_origen, 02_Treball,
+    03_Resultats, 04_Planols, 05_Documents) dins `carpeta`, els grups de capes
+    segons el tipus i les capes oficials indicades (o les per defecte del tipus).
+    Si QGIS té canvis sense desar, l'usuari haurà de confirmar-ho a QGIS.
+    """
+    return envia("crea_projecte", nom=nom, carpeta=carpeta, tipus=tipus, crs=crs, capes=capes)
+
+
+@mcp.tool()
+def organitza_capes() -> dict:
+    """Agrupa per tipus (punts, línies, polígons, ràster, serveis web) les capes
+    que no són dins de cap grup. No modifica les capes que ja estan agrupades."""
+    return envia("organitza_capes")
+
+
+@mcp.tool()
+def desa_projecte() -> dict:
+    """Desa el projecte obert a QGIS."""
+    return envia("desa_projecte")
 
 
 if __name__ == "__main__":
