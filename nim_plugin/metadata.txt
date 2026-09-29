@@ -1,0 +1,15 @@
+[general]
+name=NiM-GIS
+qgisMinimumVersion=3.34
+qgisMaximumVersion=4.99
+supportsQt6=True
+description=Connexió MCP entre QGIS i assistents d'IA amb base de dades agronòmica, hidràulica i ambiental de Catalunya
+about=Basat en qgis-mcp de Nicolas Karasiak. Integra una base de dades PostgreSQL/PostGIS amb informació agronòmica, hidràulica i ambiental de Catalunya.
+version=0.0.1
+author=mocci
+license=GPLv3+
+homepage=https://github.com/mocci5/nim-gis
+repository=https://github.com/mocci5/nim-gis
+tracker=https://github.com/mocci5/nim-gis/issues
+experimental=True
+deprecated=False
